@@ -2,7 +2,7 @@
 <html lang="cs"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="referrer" content="no-referrer"><title>QR skener – Školní knihovna</title>
 <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
 <style>*{box-sizing:border-box}body{margin:0;background:#eef3f8;color:#17324b;font:16px system-ui,-apple-system,Segoe UI,sans-serif}header{background:#153d5b;color:white;padding:20px}main{max-width:760px;margin:26px auto;padding:0 16px}section{background:white;border:1px solid #d9e4ec;border-radius:14px;padding:22px;box-shadow:0 3px 15px #1232}h1{font-size:24px;margin:0}h2{font-size:20px;margin:0 0 12px}.muted{color:#58718a;line-height:1.6}video{display:block;width:100%;max-height:390px;aspect-ratio:4/3;object-fit:contain;background:#121212;border-radius:10px}button{cursor:pointer;border:0;border-radius:9px;padding:12px 15px;font-weight:600;background:#196b98;color:#fff;font-size:15px}button.secondary{background:#e6eff5;color:#16415c}button:disabled{opacity:.55;cursor:default}.buttons{display:flex;gap:9px;flex-wrap:wrap;margin:14px 0}label{display:block;margin:16px 0 6px;font-weight:600}input{width:100%;padding:13px;border:1px solid #b6cad7;border-radius:9px;font-size:16px}#result{padding:14px;background:#eaf4ff;border-radius:9px;margin:12px 0;overflow-wrap:anywhere}#status{margin:10px 0;line-height:1.5}#status.error{color:#a52c3c}small{color:#58718a}footer{text-align:center;color:#58718a;font-size:13px;padding:23px}
-</style></head><body><header><h1>📚 QR skener – Školní knihovna</h1><div>Samostatný skener pro načtení inventárních a čtenářských kódů</div></header><main><section><h2>Skenování kamerou</h2><p class="muted">Povol použití kamery. Přilož QR štítek knihy nebo čtenářskou kartičku. Skener rozpozná například <strong>BOOK:K001</strong> nebo <strong>STUDENT:identifikátor</strong>.</p><video id="preview" playsinline autoplay muted aria-label="Náhled kamery"></video><div class="buttons"><button id="start">Zapnout kameru</button><button id="stop" class="secondary">Vypnout kameru</button></div><p id="status" aria-live="polite">Kamera je vypnutá.</p><label for="manual">Ruční zadání kódu</label><input id="manual" placeholder="BOOK:K001 nebo STUDENT:…" autocapitalize="off" autocomplete="off" spellcheck="false"><div class="buttons"><button id="manualBtn" class="secondary">Načíst zadaný kód</button></div><div id="result" hidden><strong>Načtený kód:</strong> <span id="value"></span><div class="buttons"><button id="copy">Zkopírovat kód</button><button id="again" class="secondary">Skenovat další</button></div></div><p class="muted"><small>Skener nezapisuje do databáze a nikam neodesílá snímky ani načtené kódy. Načtený údaj ručně vložíš do pole QR skeneru v knihovní aplikaci. Na stránce GitHub Pages musí být HTTPS; knihovna jsQR se stahuje z CDN.</small></p></section></main><footer>Samostatný testovací skener • Školní knihovna QR 2.0</footer>
+</style></head><body><header><h1>📚 QR skener – Školní knihovna</h1><div>Samostatný skener pro načtení inventárních a čtenářských kódů</div></header><main><section><h2>Skenování kamerou</h2><p class="muted">Povol použití kamery. Přilož QR štítek knihy nebo čtenářskou kartičku. Skener rozpozná například <strong>BOOK:K001</strong> nebo <strong>STUDENT:identifikátor</strong>.</p><video id="preview" playsinline autoplay muted aria-label="Náhled kamery"></video><div class="buttons"><button id="start">Zapnout kameru</button><button id="stop" class="secondary">Vypnout kameru</button></div><p id="status" aria-live="polite">Kamera je vypnutá.</p><label for="manual">Ruční zadání kódu</label><input id="manual" placeholder="BOOK:K001 nebo STUDENT:…" autocapitalize="off" autocomplete="off" spellcheck="false"><div class="buttons"><button id="manualBtn" class="secondary">Načíst zadaný kód</button></div><div id="result" hidden><strong>Načtený kód:</strong> <span id="value"></span><div class="buttons"><button id="copy">Zkopírovat kód</button><button id="sendToLibraryBtn" type="button">📚 Předat knihu do knihovny</button><button id="again" class="secondary">Skenovat další</button></div></div><label for="libraryUrl">Adresa administrace knihovny (stačí vyplnit jednou)</label><input id="libraryUrl" type="url" placeholder="https://script.google.com/macros/s/.../exec?page=admin" autocomplete="url"><p class="muted"><small>Tlačítko „Předat knihu“ otevře administraci s kódem knihy v adrese. Dokud knihovna nedostane úpravu pro načtení parametru book, musíš v ní kód potvrdit ručně. Kódy žáků do URL nepředáváme.</small></p><p class="muted"><small>Skener neposílá video ani snímky na server. Externí knihovna jsQR se stahuje z CDN. Nastavená adresa knihovny se uloží pouze v tomto prohlížeči.</small></p></section></main><footer>Online QR skener • Školní knihovna QR 2.0</footer>
 <script>
 (() => {
 'use strict';
@@ -10,12 +10,16 @@ const video = document.getElementById('preview');
 const status = document.getElementById('status');
 const resultBox = document.getElementById('result');
 const valueEl = document.getElementById('value');
+const libraryUrlEl = document.getElementById('libraryUrl');
+const sendBtn = document.getElementById('sendToLibraryBtn');
+libraryUrlEl.value = localStorage.getItem('knihovnaAdminUrl') || '';
+libraryUrlEl.addEventListener('change',()=>{localStorage.setItem('knihovnaAdminUrl',libraryUrlEl.value.trim());});
 const canvas = document.createElement('canvas');
 const ctx = canvas.getContext('2d', {willReadFrequently:true});
 let stream = null, timer = null, latest = '';
 function showStatus(message, error=false){status.textContent=message;status.className=error?'error':'';}
 function stop(){if(timer!==null){clearInterval(timer);timer=null;}if(stream){stream.getTracks().forEach(track=>track.stop());stream=null;}video.srcObject=null;}
-function applyCode(raw){const code=String(raw||'').trim();if(!/^(BOOK:[A-Za-z0-9_-]{1,80}|STUDENT:[A-Za-z0-9_-]{1,100})$/.test(code)){showStatus('QR kód nemá očekávaný formát BOOK:… nebo STUDENT:…',true);return false;}latest=code;valueEl.textContent=code;resultBox.hidden=false;stop();showStatus('Kód rozpoznán. Klikni na „Zkopírovat kód“.');return true;}
+function applyCode(raw){const code=String(raw||'').trim();if(!/^(BOOK:[A-Za-z0-9_-]{1,80}|STUDENT:[A-Za-z0-9_-]{1,100})$/.test(code)){showStatus('QR kód nemá očekávaný formát BOOK:… nebo STUDENT:…',true);return false;}latest=code;valueEl.textContent=code;resultBox.hidden=false;stop();sendBtn.disabled = !code.startsWith('BOOK:');showStatus(code.startsWith('BOOK:')?'Kniha načtena. Můžeš ji předat do knihovny.':'Čtenářská kartička načtena. Kód lze pouze zkopírovat.');return true;}
 function scan(){if(!stream || video.readyState<2 || !video.videoWidth || !video.videoHeight)return;try{canvas.width=video.videoWidth;canvas.height=video.videoHeight;ctx.drawImage(video,0,0,canvas.width,canvas.height);const pixels=ctx.getImageData(0,0,canvas.width,canvas.height);const code=jsQR(pixels.data,canvas.width,canvas.height,{inversionAttempts:'attemptBoth'});if(code)applyCode(code.data);}catch(e){showStatus('Chyba při čtení obrazu: '+e.message,true);stop();}}
 async function start(){stop();resultBox.hidden=true;if(typeof jsQR!=='function'){showStatus('Knihovna pro čtení QR se nenačetla. Zkontroluj internetové připojení.',true);return;}if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){showStatus('Kamera není dostupná. Otevři stránku na HTTPS v moderním prohlížeči.',true);return;}try{stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}},audio:false});video.srcObject=stream;await video.play();showStatus('Kamera běží. Přilož QR kód před objektiv.');timer=setInterval(scan,250);}catch(e){stop();showStatus('Kameru se nepodařilo zapnout: '+(e.name||'')+' – '+(e.message||'Zkontroluj oprávnění stránky.'),true);}}
 document.getElementById('start').addEventListener('click',start);
@@ -23,6 +27,22 @@ document.getElementById('stop').addEventListener('click',()=>{stop();showStatus(
 document.getElementById('manualBtn').addEventListener('click',()=>applyCode(document.getElementById('manual').value));
 document.getElementById('manual').addEventListener('keydown',e=>{if(e.key==='Enter')applyCode(e.target.value);});
 document.getElementById('again').addEventListener('click',start);
+sendBtn.disabled = true;
+sendBtn.addEventListener('click',()=>{
+  if(!latest.startsWith('BOOK:')){showStatus('Předat lze pouze inventární kód knihy.',true);return;}
+  const raw=libraryUrlEl.value.trim();
+  let target;
+  try { target = new URL(raw); } catch(e) {showStatus('Vyplň platnou adresu administrace knihovny.',true);libraryUrlEl.focus();return;}
+  if(target.protocol!=='https:' || target.hostname!=='script.google.com' || !target.pathname.includes('/macros/s/') || !target.pathname.endsWith('/exec')){
+    showStatus('Zadej HTTPS adresu nasazené aplikace Google Apps Script končící na /exec.',true);return;
+  }
+  localStorage.setItem('knihovnaAdminUrl',raw);
+  target.searchParams.set('page','admin');
+  target.searchParams.set('book',latest);
+  // Otevření je reakcí na skutečný klik uživatele, nikoliv automatickým přesměrováním po skenu.
+  const a=document.createElement('a');a.href=target.toString();a.target='_blank';a.rel='noopener noreferrer';document.body.appendChild(a);a.click();a.remove();
+  showStatus('Administrace otevřena s kódem knihy. Zpracování parametru book v knihovně ještě doplníme.');
+});
 document.getElementById('copy').addEventListener('click',async()=>{try{await navigator.clipboard.writeText(latest);showStatus('Kód zkopírován. Vlož ho do QR skeneru ve Školní knihovně.');}catch(e){showStatus('Automatické kopírování se nepovedlo. Označ kód a zkopíruj Ctrl+C.',true);}});
 window.addEventListener('pagehide',stop);
 })();
