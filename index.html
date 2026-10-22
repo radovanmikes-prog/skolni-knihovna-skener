@@ -40,7 +40,7 @@ sendBtn.addEventListener('click',()=>{
   target.searchParams.set('page','admin');
   target.searchParams.set('book',latest);
   // Otevření je reakcí na skutečný klik uživatele, nikoliv automatickým přesměrováním po skenu.
-  const a=document.createElement('a');a.href=target.toString();a.target='_blank';a.rel='noopener noreferrer';document.body.appendChild(a);a.click();a.remove();
+  window.open(target.toString(), 'knihovnaAdmin');
   showStatus('Administrace otevřena s kódem knihy. Zpracování parametru book v knihovně ještě doplníme.');
 });
 document.getElementById('copy').addEventListener('click',async()=>{try{await navigator.clipboard.writeText(latest);showStatus('Kód zkopírován. Vlož ho do QR skeneru ve Školní knihovně.');}catch(e){showStatus('Automatické kopírování se nepovedlo. Označ kód a zkopíruj Ctrl+C.',true);}});
